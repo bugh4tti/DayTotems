@@ -96,3 +96,28 @@ public class MenuListener implements Listener {
         switch (difficulty) {
             case "Facil":
                 for (int i = 0; i
+< 36; i++) {
+                    ItemStack current = inv.getItem(i);
+                    if (current == null || current.getType() == Material.AIR) {
+                        inv.setItem(i, new ItemStack(Material.TOTEM_OF_UNDYING, 64));
+                    }
+                }
+                break;
+
+            case "Avanzado":
+                for (int i = 0; i < 9; i++) {
+                    ItemStack current = inv.getItem(i);
+                    if (current == null || current.getType() == Material.AIR) {
+                        inv.setItem(i, new ItemStack(Material.TOTEM_OF_UNDYING, 64));
+                    }
+                }
+                break;
+
+            case "Dificil":
+                if (inv.getItemInOffHand().getType() != Material.TOTEM_OF_UNDYING) {
+                    inv.setItemInOffHand(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
+                }
+                break;
+        }
+    }
+    }
