@@ -99,7 +99,7 @@ public class MenuListener implements Listener {
 < 36; i++) {
                     ItemStack current = inv.getItem(i);
                     if (current == null || current.getType() == Material.AIR) {
-                        inv.setItem(i, new ItemStack(Material.TOTEM_OF_UNDYING, 64));
+                        inv.setItem(i, new ItemStack(Material.TOTEM_OF_UNDYING, 1));
                     }
                 }
                 break;
@@ -108,7 +108,7 @@ public class MenuListener implements Listener {
                 for (int i = 0; i < 9; i++) {
                     ItemStack current = inv.getItem(i);
                     if (current == null || current.getType() == Material.AIR) {
-                        inv.setItem(i, new ItemStack(Material.TOTEM_OF_UNDYING, 64));
+                        inv.setItem(i, new ItemStack(Material.TOTEM_OF_UNDYING, 1));
                     }
                 }
                 break;
