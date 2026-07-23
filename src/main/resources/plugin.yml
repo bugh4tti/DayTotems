@@ -7,3 +7,6 @@ commands:
   daytotems:
     description: Abre el menu de practica de totems
     usage: /daytotems
+  daytop:
+    description: Muestra el top 3 de jugadores que mas totems popearon
+    usage: /daytop
