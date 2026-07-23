@@ -16,6 +16,7 @@ public class MenuListener implements Listener {
 
     private static final String DIFFICULTY_PREFIX = ChatColor.DARK_RED + "Practica de Totems - Dificultad";
     private static final String TICKS_PREFIX = ChatColor.DARK_AQUA + "Practica de Totems - Ticks";
+    private static final String TOP_MENU_TITLE = ChatColor.GOLD + "Top 3 Popeadores de Totems";
 
     private final DayTotems plugin;
 
@@ -28,10 +29,17 @@ public class MenuListener implements Listener {
         String title = event.getView().getTitle();
         boolean isDifficultyMenu = title.equals(DIFFICULTY_PREFIX);
         boolean isTicksMenu = title.startsWith(TICKS_PREFIX);
+        boolean isTopMenu = title.equals(TOP_MENU_TITLE);
 
-        if (!isDifficultyMenu && !isTicksMenu) return;
+        if (!isDifficultyMenu && !isTicksMenu && !isTopMenu) return;
 
+        // Cancelamos siempre: ninguno de estos menus deja sacar ni mover items.
         event.setCancelled(true);
+
+        if (isTopMenu) {
+            // Es solo informativo, no hay nada que procesar al clickear.
+            return;
+        }
 
         if (!(event.getWhoClicked() instanceof Player)) return;
         Player player = (Player) event.getWhoClicked();
@@ -73,10 +81,10 @@ public class MenuListener implements Listener {
         BukkitTask previous = plugin.getActiveTasks().remove(id);
         if (previous != null) previous.cancel();
 
-        fillTotems(player, difficulty);
+        restockAll(player, difficulty);
         player.sendMessage(ChatColor.GREEN + "Practica iniciada: " + ChatColor.YELLOW + difficulty +
                 ChatColor.GREEN + " cada " + ChatColor.YELLOW + ticks + ChatColor.GREEN + " ticks.");
-        player.sendMessage(ChatColor.GRAY + "Usa /daytotems stop para detenerla.");
+        player.sendMessage(ChatColor.GRAY + "Reponete los totems vos mismo. Usa /daytotems stop para detenerla.");
 
         BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             if (!player.isOnline()) {
@@ -84,16 +92,43 @@ public class MenuListener implements Listener {
                 if (t != null) t.cancel();
                 return;
             }
-            // Aseguramos que tenga totem en la mano secundaria antes del golpe
-            fillTotems(player, difficulty);
-            // Golpe letal para forzar el pop del totem
+
+            // Golpe letal: si el jugador tiene un totem en la mano u offhand, se activa solo.
+            // Si no tiene ninguno equipado, el golpe lo mata de verdad: hay que reponerselo a tiempo.
             player.damage(1000.0);
+
+            // Recien reabastecemos todo si se quedo sin NINGUN totem en inventario, hotbar y offhand.
+            if (contarTotemsTotales(player) == 0) {
+                restockAll(player, difficulty);
+            }
         }, ticks, ticks);
 
         plugin.getActiveTasks().put(id, task);
     }
 
-    private void fillTotems(Player player, String difficulty) {
+    /** Suma los totems que tiene el jugador en su inventario/hotbar (36 slots) y en la offhand. */
+    private int contarTotemsTotales(Player player) {
+        PlayerInventory inv = player.getInventory();
+        int total = 0;
+
+        for (int i = 0; i < 36; i++) {
+            ItemStack item = inv.getItem(i);
+            if (item != null && item.getType() == Material.TOTEM_OF_UNDYING) {
+                total += item.getAmount();
+            }
+        }
+
+        ItemStack offhand = inv.getItemInOffHand();
+        if (offhand.getType() == Material.TOTEM_OF_UNDYING) {
+            total += offhand.getAmount();
+        }
+
+        return total;
+    }
+
+    /** Reabastece todo desde cero: inventario segun dificultad, armadura y offhand. Se usa solo al iniciar
+     *  la practica o cuando el jugador se quedo sin ningun totem en inv, hotbar y offhand. */
+    private void restockAll(Player player, String difficulty) {
         PlayerInventory inv = player.getInventory();
 
         switch (difficulty) {
@@ -116,13 +151,26 @@ public class MenuListener implements Listener {
                 break;
 
             case "Dificil":
-                // En dificil no se rellena el inventario principal, solo el offhand (mas abajo)
+                // En dificil no se rellena el inventario principal.
                 break;
         }
 
-        // El offhand siempre se mantiene con un totem: es el que dispara el pop al recibir el golpe
-        if (inv.getItemInOffHand().getType() != Material.TOTEM_OF_UNDYING) {
-            inv.setItemInOffHand(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
+        equiparArmaduraDeTotems(inv);
+        inv.setItemInOffHand(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
+    }
+
+    private void equiparArmaduraDeTotems(PlayerInventory inv) {
+        if (inv.getHelmet() == null || inv.getHelmet().getType() == Material.AIR) {
+            inv.setHelmet(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
+        }
+        if (inv.getChestplate() == null || inv.getChestplate().getType() == Material.AIR) {
+            inv.setChestplate(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
+        }
+        if (inv.getLeggings() == null || inv.getLeggings().getType() == Material.AIR) {
+            inv.setLeggings(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
+        }
+        if (inv.getBoots() == null || inv.getBoots().getType() == Material.AIR) {
+            inv.setBoots(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
         }
     }
-                                                                        }
+            }
