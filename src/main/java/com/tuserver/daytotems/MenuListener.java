@@ -84,7 +84,10 @@ public class MenuListener implements Listener {
                 if (t != null) t.cancel();
                 return;
             }
+            // Aseguramos que tenga totem en la mano secundaria antes del golpe
             fillTotems(player, difficulty);
+            // Golpe letal para forzar el pop del totem
+            player.damage(1000.0);
         }, ticks, ticks);
 
         plugin.getActiveTasks().put(id, task);
@@ -95,8 +98,7 @@ public class MenuListener implements Listener {
 
         switch (difficulty) {
             case "Facil":
-                for (int i = 0; i
-< 36; i++) {
+                for (int i = 0; i < 36; i++) {
                     ItemStack current = inv.getItem(i);
                     if (current == null || current.getType() == Material.AIR) {
                         inv.setItem(i, new ItemStack(Material.TOTEM_OF_UNDYING, 1));
@@ -114,10 +116,13 @@ public class MenuListener implements Listener {
                 break;
 
             case "Dificil":
-                if (inv.getItemInOffHand().getType() != Material.TOTEM_OF_UNDYING) {
-                    inv.setItemInOffHand(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
-                }
+                // En dificil no se rellena el inventario principal, solo el offhand (mas abajo)
                 break;
         }
+
+        // El offhand siempre se mantiene con un totem: es el que dispara el pop al recibir el golpe
+        if (inv.getItemInOffHand().getType() != Material.TOTEM_OF_UNDYING) {
+            inv.setItemInOffHand(new ItemStack(Material.TOTEM_OF_UNDYING, 1));
+        }
     }
-    }
+            }
