@@ -5,7 +5,9 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -20,11 +22,12 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class DayTotems extends JavaPlugin {
+public class DayTotems extends JavaPlugin implements CommandExecutor, TabCompleter {
 
     private final Map<UUID, BukkitTask> activeTasks = new HashMap<>();
     private final Map<UUID, String> selectedDifficulty = new HashMap<>();
     private final Map<UUID, Integer> popCounts = new HashMap<>();
+    private final Map<UUID, Integer> sessionPops = new HashMap<>();
 
     private static final ItemStack PANEL = buildItem(Material.GRAY_STAINED_GLASS_PANE, " ", null);
 
@@ -34,7 +37,9 @@ public class DayTotems extends JavaPlugin {
     @Override
     public void onEnable() {
         getCommand("daytotems").setExecutor(this);
+        getCommand("daytotems").setTabCompleter(this);
         getCommand("daytop").setExecutor(this);
+        getCommand("daytop").setTabCompleter(this);
         Bukkit.getPluginManager().registerEvents(new MenuListener(this), this);
         Bukkit.getPluginManager().registerEvents(new TotemPopListener(this), this);
         Bukkit.getPluginManager().registerEvents(new PracticeDeathListener(this), this);
@@ -93,6 +98,28 @@ public class DayTotems extends JavaPlugin {
         popCounts.merge(uuid, 1, Integer::sum);
         statsConfig.set("pops." + uuid.toString(), popCounts.get(uuid));
         saveStats();
+    }
+
+    // ==================== Contador de popeadas de la sesion actual ====================
+
+    /** Reinicia el contador de popeadas de la practica actual (se llama al empezar una practica). */
+    public void resetSessionPops(UUID uuid) {
+        sessionPops.put(uuid, 0);
+    }
+
+    /** Suma 1 al contador de popeadas de la practica en curso de ese jugador. */
+    public void incrementSessionPop(UUID uuid) {
+        sessionPops.merge(uuid, 1, Integer::sum);
+    }
+
+    /** Devuelve cuantas popeadas lleva en la practica actual (0 si no tiene una registrada). */
+    public int getSessionPops(UUID uuid) {
+        return sessionPops.getOrDefault(uuid, 0);
+    }
+
+    /** Limpia el contador de popeadas de sesion de un jugador. */
+    public void clearSessionPops(UUID uuid) {
+        sessionPops.remove(uuid);
     }
 
     /** Devuelve el top N de jugadores segun totems popeados. */
@@ -169,6 +196,11 @@ public class DayTotems extends JavaPlugin {
         }
 
         // daytotems
+        if (args.length > 0 && args[0].equalsIgnoreCase("help")) {
+            enviarAyuda(player);
+            return true;
+        }
+
         if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
             reloadStats();
             player.sendMessage(ChatColor.GREEN + "DayTotems: datos recargados.");
@@ -188,6 +220,51 @@ public class DayTotems extends JavaPlugin {
 
         player.openInventory(createDifficultyMenu());
         return true;
+    }
+
+    private void enviarAyuda(Player player) {
+        player.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "==== Comandos de DayTotems ====");
+        player.sendMessage(ChatColor.YELLOW + "/daytotems" + ChatColor.GRAY + " - Abre el menu de practica de totems.");
+        player.sendMessage(ChatColor.YELLOW + "/daytotems stop" + ChatColor.GRAY + " - Detiene tu practica activa.");
+        player.sendMessage(ChatColor.YELLOW + "/daytotems reload" + ChatColor.GRAY + " - Recarga los datos guardados.");
+        player.sendMessage(ChatColor.YELLOW + "/daytotems help" + ChatColor.GRAY + " - Muestra esta ayuda.");
+        player.sendMessage(ChatColor.YELLOW + "/daytop" + ChatColor.GRAY + " - Muestra el top 3 de popeadores de totems.");
+        player.sendMessage(ChatColor.YELLOW + "/daytop clear" + ChatColor.GRAY + " - Reinicia el top completo (alias: reload).");
+        player.sendMessage(ChatColor.YELLOW + "/daytop removeplayer <nick>" + ChatColor.GRAY + " - Saca a un jugador del top (alias: rmpl).");
+    }
+
+    // ==================== Autocompletado ====================
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length == 1) {
+            List<String> opciones;
+            if (command.getName().equalsIgnoreCase("daytop")) {
+                opciones = Arrays.asList("clear", "reload", "removeplayer", "rmpl");
+            } else {
+                opciones = Arrays.asList("stop", "reload", "help");
+            }
+
+            String actual = args[0].toLowerCase();
+            List<String> coincidencias = new ArrayList<>();
+            for (String opcion : opciones) {
+                if (opcion.startsWith(actual)) {
+                    coincidencias.add(opcion);
+                }
+            }
+            return coincidencias;
+        }
+
+        if (args.length == 2 && command.getName().equalsIgnoreCase("daytop")
+                && (args[0].equalsIgnoreCase("removeplayer") || args[0].equalsIgnoreCase("rmpl"))) {
+            List<String> nombres = new ArrayList<>();
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                nombres.add(online.getName());
+            }
+            return nombres;
+        }
+
+        return Collections.emptyList();
     }
 
     // ==================== Menus ====================
