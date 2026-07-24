@@ -37,6 +37,7 @@ public class DayTotems extends JavaPlugin {
         getCommand("daytop").setExecutor(this);
         Bukkit.getPluginManager().registerEvents(new MenuListener(this), this);
         Bukkit.getPluginManager().registerEvents(new TotemPopListener(this), this);
+        Bukkit.getPluginManager().registerEvents(new PracticeDeathListener(this), this);
         loadStats();
         getLogger().info("DayTotems habilitado.");
     }
@@ -68,6 +69,7 @@ public class DayTotems extends JavaPlugin {
             }
         }
         statsConfig = YamlConfiguration.loadConfiguration(statsFile);
+        popCounts.clear();
         if (statsConfig.isConfigurationSection("pops")) {
             for (String key : statsConfig.getConfigurationSection("pops").getKeys(false)) {
                 try {
@@ -78,15 +80,19 @@ public class DayTotems extends JavaPlugin {
         }
     }
 
-    /** Suma 1 al contador de totems popeados de un jugador y lo guarda en disco. */
-    public void incrementPop(UUID uuid) {
-        popCounts.merge(uuid, 1, Integer::sum);
-        statsConfig.set("pops." + uuid.toString(), popCounts.get(uuid));
+    private void saveStats() {
         try {
             statsConfig.save(statsFile);
         } catch (IOException e) {
             getLogger().warning("No se pudo guardar popstats.yml");
         }
+    }
+
+    /** Suma 1 al contador de totems popeados de un jugador y lo guarda en disco. */
+    public void incrementPop(UUID uuid) {
+        popCounts.merge(uuid, 1, Integer::sum);
+        statsConfig.set("pops." + uuid.toString(), popCounts.get(uuid));
+        saveStats();
     }
 
     /** Devuelve el top N de jugadores segun totems popeados. */
@@ -95,6 +101,32 @@ public class DayTotems extends JavaPlugin {
                 .sorted((a, b) -> b.getValue() - a.getValue())
                 .limit(n)
                 .collect(Collectors.toList());
+    }
+
+    /** Elimina del top a un jugador puntual por su nick. Devuelve true si estaba y se borro. */
+    public boolean removePlayerStats(String nick) {
+        for (UUID uuid : new ArrayList<>(popCounts.keySet())) {
+            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(uuid);
+            if (offlinePlayer.getName() != null && offlinePlayer.getName().equalsIgnoreCase(nick)) {
+                popCounts.remove(uuid);
+                statsConfig.set("pops." + uuid.toString(), null);
+                saveStats();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Borra el top completo (puestos 1, 2 y 3 y cualquier otro registro). */
+    public void clearAllStats() {
+        popCounts.clear();
+        statsConfig.set("pops", null);
+        saveStats();
+    }
+
+    /** Recarga los datos de estadisticas desde el archivo en disco. */
+    public void reloadStats() {
+        loadStats();
     }
 
     // ==================== Comando ====================
@@ -108,7 +140,38 @@ public class DayTotems extends JavaPlugin {
         Player player = (Player) sender;
 
         if (label.equalsIgnoreCase("daytop")) {
+            if (args.length > 0) {
+                String sub = args[0].toLowerCase();
+
+                if (sub.equals("clear") || sub.equals("reload")) {
+                    clearAllStats();
+                    player.sendMessage(ChatColor.GREEN + "Se reinicio el top de totems popeados (puestos 1, 2 y 3).");
+                    return true;
+                }
+
+                if (sub.equals("removeplayer") || sub.equals("rmpl")) {
+                    if (args.length < 2) {
+                        player.sendMessage(ChatColor.RED + "Uso: /daytop removeplayer <nick>");
+                        return true;
+                    }
+                    boolean removed = removePlayerStats(args[1]);
+                    if (removed) {
+                        player.sendMessage(ChatColor.GREEN + "Se elimino a " + args[1] + " del top.");
+                    } else {
+                        player.sendMessage(ChatColor.GRAY + "Ese jugador no aparece en el top.");
+                    }
+                    return true;
+                }
+            }
+
             player.openInventory(createTopMenu());
+            return true;
+        }
+
+        // daytotems
+        if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
+            reloadStats();
+            player.sendMessage(ChatColor.GREEN + "DayTotems: datos recargados.");
             return true;
         }
 
@@ -135,7 +198,6 @@ public class DayTotems extends JavaPlugin {
 
         fillBorder(inv);
 
-        // Fila central (index 2 => slots 18-26), columnas 2, 4 y 6 centradas
         inv.setItem(20, buildItem(Material.LIME_WOOL, ChatColor.GREEN + "Facil",
                 Arrays.asList(ChatColor.GRAY + "El inventario se mantiene",
                         ChatColor.GRAY + "siempre lleno de totems.")));
@@ -159,14 +221,13 @@ public class DayTotems extends JavaPlugin {
         fillBorder(inv);
 
         int[] ticks = {5, 10, 15, 20, 25};
-        int[] slots = {19, 21, 22, 23, 25}; // fila central, distribuidos y centrados
+        int[] slots = {19, 21, 22, 23, 25};
 
         for (int i = 0; i < ticks.length; i++) {
             inv.setItem(slots[i], buildItem(Material.TOTEM_OF_UNDYING, ChatColor.AQUA + "Cada " + ticks[i] + " ticks",
                     Collections.singletonList(ChatColor.GRAY + "Click para comenzar la practica")));
         }
 
-        // Boton volver, esquina inferior izquierda del area util
         inv.setItem(45, buildItem(Material.ARROW, ChatColor.GRAY + "« Volver", null));
 
         return inv;
@@ -230,4 +291,4 @@ public class DayTotems extends JavaPlugin {
         item.setItemMeta(meta);
         return item;
     }
-    }
+            }
